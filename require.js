@@ -40,26 +40,6 @@ let context = lua.js.context,
 /* This is the actual global object shared by everyone. */
 let global = {}
 
-/* Canonicalize path. We don't have realpath(2) just yet. */
-let realpath = function(path)
-{
-  let res = [],
-      prep = ''
-
-  if (path[0] == '/') {
-    path = path.sub(1)
-    prep = '/'
-  }
-
-  for (let part of path.split('/').values()) {
-    if (part === '..' && res.length)
-      res.pop()
-    else if (part !== '' && part !== '.')
-      res.push(part)
-  }
-  return prep + res.join('/')
-}
-
 /* Compute dirname. */
 let dirname = function(path)
 {
@@ -155,7 +135,7 @@ Module.prototype = {
           let fd = open(attempt, 'r')[0]
           if (fd) {
             close(fd)
-            return realpath(attempt)
+            return llfs.realpath(attempt)
           }
         }
       }
