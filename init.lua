@@ -20,29 +20,33 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 --]===========================================================================]
-local js = require('lv8'):flags('--harmony')
-local lua = {
-  js = js,
-  require = require,
-  io = io,
-  print = print,
-  tostring = tostring,
-  os = os,
-  loadstring = loadstring,
-}
+local js = require('lv8')
 local mod = {}
-local ctx = lua.js { lua = lua, module = mod }
+
+-- Start new JS context.
+local ctx = js()
 
 -- Bootstrap.
 local basepath = debug.getinfo(1).short_src:match("^(.*)/")
-ctx:eval(assert(io.open(basepath..'/require.js','r')):read('*a'))
+local fpath = basepath..'/boot.js'
+local source = assert(io.open(fpath,'r')):read('*a')
+source = "(function(native){"..source.."\nreturn Module;})"
+print(source)
+local fn = js.vm:eval(source, fpath, ctx)
+local Module = fn(fn, {
+  vm = js.vm,
+  fs = js.fs,
+  lua = _G
+})
 
--- Also add bootstrap path at end of base paths
-mod.exports.path:push(basepath)
+print(Module)
+
+-- Also add bootstrap path at the end of base paths
+Module.path:push(basepath)
 
 -- Return node-like require()
 return setmetatable({
-  Module = mod.exports,
+  Module = Module,
   js = ctx
 }, {__call = function(node, m)
   return node.Module.prototype:require(m)

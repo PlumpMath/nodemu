@@ -27,15 +27,30 @@
 
 /*
  * TODO:
- * - Rewrite [0]ed retvals from Lua using destructuring when available.
- * - Integrate ES6 module support
+ * #1 Rewrite [0]ed retvals from Lua using destructuring when available.
+ * #2 Integrate ES6 module support
+ * #3 Perhaps un-break "unique context=unique builtin" in V8 some day
  */
 
-/* Cache slow Lua proxies to locals */
-let context = lua.js.context,
-    open = lua.io.open,
+/* Sentinel. */
+if (!native) return;
+
+/* Only lua and native at this point. */
+let vm = native.vm,
+    fs = native.fs,
+    lua = native.lua,
+    self = native.self
+
+lua.print('boot')
+let open = lua.io.open,
     read = lua.io.stdin.read, // TBD: Ugly.
     close = lua.io.close
+
+let realpath = fs.realpath,
+    stat = fs.stat
+
+/* Hard-coded module names which can also access native APIs. */
+let builtin = ['require','fs','process','vm']
 
 /* This is the actual global object shared by everyone. */
 let global = {}
@@ -49,8 +64,7 @@ let dirname = function(path)
   return parts.join('/')
 }
 
-
-/* Constructor */
+/* Module constructor. */
 let Module = function(id, fn, parent)
 {
   /* Public API fields. */
@@ -78,7 +92,7 @@ Module.prototype = {
   require: function(mid)
   {
     if (mid === 'require')
-      return Module;
+      return this.require;
 
     let key = this.dirname + '\0' + mid,
         mod
@@ -119,12 +133,15 @@ Module.prototype = {
   {
     let paths = ['']
     if (mid[0] !== '/' && this.dirname)
-      paths.push(this.dirname + '/') // Dirname of parent.
+      paths.push(this.dirname) // Dirname of parent.
 
     paths = paths.concat(Module.path) // Stable path comes last.
 
     for (let path of paths.values()) {
       for (let ext in this.extensions) {
+        if (path === '') path = '.'
+        if (path[path.length-1] !== '/')
+          path += '/'
         let attempts = [
           path + mid + '/index' + ext,
           path + mid + ext,
@@ -132,11 +149,8 @@ Module.prototype = {
         ]
 
         for (let attempt of attempts.values()) {
-          let fd = open(attempt, 'r')[0]
-          if (fd) {
-            close(fd)
-            return llfs.realpath(attempt)
-          }
+          if (stat(attempt) === 0)
+            return realpath(attempt)
         }
       }
     }
@@ -145,20 +159,44 @@ Module.prototype = {
   /* Extension handlers. */
   extensions: {
     '.js': function(mod, path, mid) {
-      var scope = context({
+      var localscope = {
         global: global,
         exports: mod.exports,
         require: mod.require,
+        console: { log: lua.print }, // For now.
         __dirname: mod.dirname,
         __filename: mod.filename,
-        module: mod,
-        lua: lua,
-      })[0] // Start fresh JS context.
+        native:
+          builtin.indexOf(mod.id) >= 0
+            && native
+            || undefined,
+      }
 
       let fd = open(path, 'r')[0]
-      let res = read(fd, '*a')[0]
-      scope.eval(res)
+      let source = read(fd, '*a')[0]
       close(fd)
+      /* See #3.
+       *
+       * We have to do this because V8 contexes are
+       * utterly broken for the likes of Node.
+       *
+       * Eventually, built-in objects should be
+       * one world when inheritance across ctx works.
+       *
+       * Incidentally, this is exactly how Function.new
+       * is implemented in V8 VM genesis snapshot,
+       * unfortunatelly that one does not take filename
+       * argument.
+       */
+      let body = '\x28function\x28'
+      let args = []
+      for (var k in localscope) {
+        body += k + ','
+        args.push(localscope[k])
+      }
+      body += 'module\x29\x7b' + source + "\n; return module;\x7d\x29"
+      args.push(mod)
+      return vm.eval(body, path, self).apply(mod, args)
     }
   },
 
@@ -166,5 +204,4 @@ Module.prototype = {
   dirname: './'
 }
 
-module.exports = Module
 
