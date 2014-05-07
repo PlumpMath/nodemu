@@ -39,8 +39,6 @@ local Module = fn(fn, {
   lua = _G
 })
 
-print(Module)
-
 -- Also add bootstrap path at the end of base paths
 Module.path:push(basepath)
 

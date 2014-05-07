@@ -1,7 +1,7 @@
 /*
  * Module loader, require(), export etc.
  *
- * Nodemu, Node.js emulated in Lua.
+ * Nodemu, Node.js emulated
  * (C) Copyright 2014, Karel Tuma <kat@lua.cz>, All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -163,6 +163,7 @@ Module.prototype = {
         global: global,
         exports: mod.exports,
         require: mod.require,
+        assert: assert,
         console: { log: lua.print }, // For now.
         __dirname: mod.dirname,
         __filename: mod.filename,
