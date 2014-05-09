@@ -25,11 +25,14 @@
 
 'use strict'
 
+let pretty_errors = true // Colors in errors
+let global_compat = true // global.* writeable
+
 /*
  * TODO:
  * #1 Rewrite [0]ed retvals from Lua using destructuring when available.
  * #2 Integrate ES6 module support
- * #3 Perhaps un-break "unique context=unique builtin" in V8 some day
+ * #3 Perhaps un-break 'unique context=unique builtin' in V8 some day
  */
 
 /* Sentinel. */
@@ -44,16 +47,18 @@ let open = lua.io.open,
     read = lua.io.stdin.read, // TBD: Ugly.
     close = lua.io.close
 let realpath = binding.realpath,
-    stat = binding.stat
+    stat = binding.stat,
+    run = binding.eval
+
+/* To pad error strings. */
+let spaces = Array(256).join(' ')
+let underline = Array(256).join('~')
 
 /* Forward decls. */
 let assert
 
 /* Hard-coded module names which can also access native APIs. */
 let builtin = ['require','fs','process','vm']
-
-/* This is the actual global object shared by everyone. */
-let global = {}
 
 /* Compute dirname. */
 let dirname = function(path)
@@ -86,6 +91,7 @@ Module.path = [
 /* Exposed cache */
 let cache = {}
 
+/* Root module.* prototype. */
 Module.prototype = {
   cache: cache,
   /* Require module in context of 'mid'. */
@@ -162,7 +168,6 @@ Module.prototype = {
       var localscope = {
         exports: mod.exports,
         require: mod.require,
-        module: mod,
         __filename: mod.filename,
         __dirname: mod.dirname,
         native:
@@ -177,15 +182,15 @@ Module.prototype = {
       /* See #3.
        *
        * We have to do this because V8 contexes are
-       * utterly broken for the likes of Node.
+       * not a good fit for the likes of Node at the moment
+       * (node uses similiar wrapper).
        *
        * Eventually, built-in objects should be
        * one world when inheritance across ctx works.
        *
-       * Incidentally, this is exactly how Function.new
-       * is implemented in V8 VM genesis snapshot,
-       * unfortunatelly that one does not take filename
-       * argument.
+       * This is exactly how Function.new is implemented
+       * in V8 VM genesis snapshot as well, unfortunatelly
+       * that one does not take filename argument.
        */
       let body = '\x28function\x28'
       let args = []
@@ -193,9 +198,12 @@ Module.prototype = {
         body += k + ','
         args.push(localscope[k])
       }
-      body += 'module\x29\x7b' + source + "\n; return module;\x7d\x29"
+      body += 'module\x29\x7b' + source + '\n\x7d\x29'
       args.push(mod)
-      return eval(body, path, self).apply(mod, args)
+      let f = run(self, body, path)
+      if (typeof f != 'function')
+        throw new Error('Parser failed for ' + path)
+      f.apply(mod, args)
     }
   },
 
@@ -203,14 +211,60 @@ Module.prototype = {
   dirname: './'
 }
 
-/* Global aliases. */
-global.GLOBAL = global
-global.root = global
-global.require = Module.prototype.require.bind(Module.prototype)
-global.console = global.require('console')
+/* Custom stack trace handler for munging syntax errors. */
+let C_ERRMSG = '\x1b[1;41;37m',
+    C_BOLD = '\x1b[1;37m',
+    C_RESET = '\x1b[0m'
+if (!pretty_errors)
+  C_ERRMSG = C_BOLD = C_RESET = ''
+
+Error.prepareStackTrace = function(e, trace) {
+  let ret = Array()
+  if (e.lineNumber) {
+    ret.push('\n' + C_BOLD + e.scriptResourceName + C_RESET + ':' +
+        e.lineNumber + ':' +
+        e.startColumn + '\n');
+      ret.push(e.sourceLine + '\n')
+      ret.push(spaces.substring(0, e.startColumn) + C_BOLD +
+          underline.substring(0, e.endColumn - e.startColumn) + C_RESET + '\n')
+  }
+  ret.push(e.name + ': ' + C_ERRMSG + e.message + C_RESET + '\n')
+  for (let i = 0; i < trace.length; i++)
+    ret.push('    at '+trace[i].toString() + '\n')
+  return ret.join('')
+}
+
+/* Set a global variable from strict mode. */
+let setglobal = function(k,v)
+{
+  Object.defineProperty(self, k, { value: v, writable: true })
+  return v
+}
+
+/* 
+ * Initialize the global object. It is a proxy to the
+ * true context global object because majority of node
+ * modules do not yet use defineProperty when writing to
+ * global.* within strict mode.
+ */
+let global = global_compat?Proxy.create({
+  set: function(recv, k, v) {
+    setglobal(k,v)
+  },
+  get: function(recv, k) {
+    return self[k]
+  },
+  getPropertyNames: function() { return Object.getPropertyNames(self) },
+  getOwnPropertyNames: function() { return Object.getOwnPropertyNames(self) },
+  defineProperty: function(g,n,pd) {
+    return Object.getOwnPropertyNames(self, n, pd) },
+}):self
+setglobal('global', global)
+setglobal('GLOBAL', global)
+setglobal('root', global)
 
 /* Initialize process */
-global.process = {
+setglobal('process', {
   title: 'node',
   versions: {
     node: 'v0.10.0',
@@ -221,5 +275,10 @@ global.process = {
   env: binding.env,
   pid: binding.pid,
   execPath: native.arg[0],
-}
+})
+
+/* Instantiate common global vars. */
+setglobal('require', Module.prototype.require.bind(Module.prototype))
+setglobal('console', global.require('console'))
+
 

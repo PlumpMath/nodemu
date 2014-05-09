@@ -28,6 +28,8 @@
 
 'use strict'
 
+let inspect
+
 /* Type predicates. */
 let to_str = function(v) {
   return v.prototype.toString.call(v)
@@ -176,38 +178,10 @@ let has_own_property = function(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop)
 }
 
-/* ANSI art spam. */
-let inspect.colors = {
-  'bold' : [1, 22],
-  'italic' : [3, 23],
-  'underline' : [4, 24],
-  'inverse' : [7, 27],
-  'white' : [37, 39],
-  'grey' : [90, 39],
-  'black' : [30, 39],
-  'blue' : [34, 39],
-  'cyan' : [36, 39],
-  'green' : [32, 39],
-  'magenta' : [35, 39],
-  'red' : [31, 39],
-  'yellow' : [33, 39]
-}
-
-let inspect.styles = {
-  'special': 'cyan',
-  'number': 'yellow',
-  'boolean': 'yellow',
-  'undefined': 'grey',
-  'null': 'bold',
-  'string': 'green',
-  'date': 'magenta',
-  // "name": intentionally not styling
-  'regexp': 'red'
-}
-
 /* Stylize with vt100 escapes. */
 let stylize_l33t = function(str, typ) {
-  if (let style = inspect.styles[typ])
+  let style
+  if (style = inspect.styles[typ])
     return '\u001b[' + inspect.colors[style][0] + 'm' + str +
            '\u001b[' + inspect.colors[style][1] + 'm'
   return str // Or not.
@@ -521,7 +495,7 @@ exports.debug = function()
 }
 
 /* Node.JS pretty printer. */
-exports.inspect = function(obj, opts)
+inspect = exports.inspect = function(obj, opts) {
   let ctx = { // default options
     seen: [],
     stylize: stylize_plain
@@ -543,8 +517,38 @@ exports.inspect = function(obj, opts)
 /* Alias from function_name to functionName. */
 for (let k in exports) {
   let v = exports[k]
-  exports[k] = v.replace(/(_[a-z])/g, function(part) {
+  exports[k] = k.replace(/(_[a-z])/g, function(part) {
     return part.toUpperCase().replace('_','')
   })
 }
+
+/* ANSI art spam. */
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+}
+
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+}
+
 
