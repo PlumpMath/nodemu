@@ -36,18 +36,18 @@
 if (!native) return;
 
 /* Only lua and native at this point. */
-let vm = native.vm,
-    fs = native.fs,
+let binding = native.binding,
     lua = native.lua,
     self = native.self
 
-lua.print('boot')
 let open = lua.io.open,
     read = lua.io.stdin.read, // TBD: Ugly.
     close = lua.io.close
+let realpath = binding.realpath,
+    stat = binding.stat
 
-let realpath = fs.realpath,
-    stat = fs.stat
+/* Forward decls. */
+let assert
 
 /* Hard-coded module names which can also access native APIs. */
 let builtin = ['require','fs','process','vm']
@@ -160,13 +160,11 @@ Module.prototype = {
   extensions: {
     '.js': function(mod, path, mid) {
       var localscope = {
-        global: global,
         exports: mod.exports,
         require: mod.require,
-        assert: assert,
-        console: { log: lua.print }, // For now.
-        __dirname: mod.dirname,
+        module: mod,
         __filename: mod.filename,
+        __dirname: mod.dirname,
         native:
           builtin.indexOf(mod.id) >= 0
             && native
@@ -197,7 +195,7 @@ Module.prototype = {
       }
       body += 'module\x29\x7b' + source + "\n; return module;\x7d\x29"
       args.push(mod)
-      return vm.eval(body, path, self).apply(mod, args)
+      return eval(body, path, self).apply(mod, args)
     }
   },
 
@@ -205,4 +203,23 @@ Module.prototype = {
   dirname: './'
 }
 
+/* Global aliases. */
+global.GLOBAL = global
+global.root = global
+global.require = Module.prototype.require.bind(Module.prototype)
+global.console = global.require('console')
+
+/* Initialize process */
+global.process = {
+  title: 'node',
+  versions: {
+    node: 'v0.10.0',
+    v8: binding.v8_version,
+  },
+  platform: binding.platform,
+  arch: binding.arch,
+  env: binding.env,
+  pid: binding.pid,
+  execPath: native.arg[0],
+}
 

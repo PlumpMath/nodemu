@@ -29,6 +29,7 @@
 'use strict'
 
 let util = require('util')
+
 let inherits = util.inherits,
     is_undefined = util.is_undefined,
     is_number = util.is_number,

@@ -25,18 +25,19 @@ local mod = {}
 
 -- Start new JS context.
 local ctx = js()
+ctx.global = ctx
 
 -- Bootstrap.
 local basepath = debug.getinfo(1).short_src:match("^(.*)/")
 local fpath = basepath..'/boot.js'
 local source = assert(io.open(fpath,'r')):read('*a')
 source = "(function(native){"..source.."\nreturn Module;})"
-print(source)
-local fn = js.vm:eval(source, fpath, ctx)
+local fn = js.binding:eval(source, fpath, ctx)
 local Module = fn(fn, {
-  vm = js.vm,
-  fs = js.fs,
-  lua = _G
+  binding = js.binding,
+  self = ctx,
+  lua = _G,
+  arg = arg
 })
 
 -- Also add bootstrap path at the end of base paths
