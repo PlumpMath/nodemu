@@ -23,6 +23,8 @@
  * THE SOFTWARE.
  */
 
+'use strict'
+
 let is_function = require('util').is_function,
     assert = require('assert').ok
 
@@ -33,7 +35,8 @@ let EventEmitter = function()
 }
 
 /* Ensure we have queue. */
-EventEmitter.prototype.init = {
+EventEmitter.prototype.init = function()
+{
   if (!this._events)
     this._events = {}
 }
@@ -106,7 +109,7 @@ EventEmitter.prototype.removeListener = function(t,f)
 {
   this.init()
   let ev = this._events[t]
-  if (!ev || !f)
+  if (!ev || !f) {
     return this
   } else if (ev.length) {
     let i = ev.indexOf(ev),
