@@ -41,12 +41,11 @@ if (!native) return;
 /* Only lua and native at this point. */
 let binding = native.binding,
     lua = native.lua,
-    self = native.self
-
-let open = lua.io.open,
+    self = native.self,
+    open = lua.io.open,
     read = lua.io.stdin.read, // TBD: Ugly.
-    close = lua.io.close
-let realpath = binding.realpath,
+    close = lua.io.close,
+    realpath = binding.realpath,
     stat = binding.stat,
     run = binding.eval
 

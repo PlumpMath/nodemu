@@ -28,9 +28,8 @@
 
 'use strict'
 
-let util = require('util')
-
-let inherits = util.inherits,
+let util = require('util'),
+    inherits = util.inherits,
     is_undefined = util.is_undefined,
     is_number = util.is_number,
     is_string = util.is_string,
@@ -38,9 +37,8 @@ let inherits = util.inherits,
     is_null_or_undefined = util.is_null_or_undefined,
     is_date = util.is_date,
     is_object = util.is_object,
-    is_buffer = util.is_buffer
-
-let slice = Array.prototype.slice
+    is_buffer = util.is_buffer,
+    slice = Array.prototype.slice
 
 /* Forward decls. */
 let assert, get_message, fail, deep_equal
