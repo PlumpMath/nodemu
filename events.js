@@ -29,70 +29,56 @@ let is_function = require('util').is_function,
     assert = require('assert').ok
 
 /* Initiate new emitter. */
-let EventEmitter = function()
+let EventEmitter = module.exports = function()
 {
   this.init()
 }
 
 /* Ensure we have queue. */
-EventEmitter.prototype.init = function()
+EventEmitter.prototype.init = function(t)
 {
   if (!this._events)
     this._events = {}
+
+  if (t && !this._events[t]) { // Array for specific `t`.
+    let evt = this._events[t] = []
+    evt.once = []
+  }
+  return this
 }
 
 /* Dummy leak detector. */
 EventEmitter.prototype.setMaxListeners = function(n)
 {
+  return this
 }
 
 /* Emit event and dispatch. */
 EventEmitter.prototype.emit = function(t)
 {
-  this.init()
+  let l = this.listeners(t)
 
-  let handler = this._events[t]
-  if (!handler) {
-    if (t === 'error')
-      throw arguments[1]
-    return false;
-  }
+  if (!l.length && t == 'error')
+    throw arguments[1]
 
-  let sarg = arguments.slice(1);
- 
-  if (is_function(handler)) { // Single handler.
-    handler.apply(this, sarg)
-  } else { // Handler list.
-    for (let h of handler.values()) {
-      h.apply(this, sarg)
-    }
-  }
+  let sarg = arguments.slice(1)
+  for (let i = 0; i < l.length; i++)
+      l[i].apply(this, sarg)
   return true
 }
 
 /* Append handler 'f' for event 't' to handler array. */
-EventEmitter.prototype.on = EventEmitter.prototype.addListener = function(t,f,once)
+EventEmitter.prototype.on = EventEmitter.prototype.addListener = function(t,f)
 {
   assert(is_function(f), "listener must be a function")
 
-  this.init()
+  this.init(t)
 
-  let ev = this._events
-
-  if (ev.newListener)
+  if (this._events.newListener)
     this.emit('newListener', t, f)
 
-  let evt = ev[t]
-  if (!ev[t]) // Does not exist yet, create.
-    evt = ev[t] = []
-  evt.push(f)
-
-  if (once) {
-    if (evt.once) // Array has .once attribute listing once-event indices.
-      evt.once.push(ev.length - 1)
-    else
-      evt.once = [ev.length - 1]
-  }
+  let l = this.listeners(t)
+  l.push(f)
 
   return this
 }
@@ -101,13 +87,16 @@ EventEmitter.prototype.on = EventEmitter.prototype.addListener = function(t,f,on
 EventEmitter.prototype.once = function(t,f)
 {
   assert(is_function(f), "listener must be a function")
-  return this.on(t, wrapper, true)
+  this.on(t, wrapper, true)
+  let l = this.listeners(t)
+  l.once.push(l.length - 1)
+  return this
 }
 
 /* Remove listener. */
 EventEmitter.prototype.removeListener = function(t,f)
 {
-  this.init()
+  this.init() // CAVEAT: Don't create `t` unnecessarily.
   let ev = this._events[t]
   if (!ev || !f) {
     return this
@@ -141,16 +130,16 @@ EventEmitter.prototype.removeAllListeners = function(t)
       this._events = {}
     else
       for (let k in this._events) // Slow.
-        this.removeAllListeners(t)
+        this.removeAllListeners(k)
     return this
   }
 
-  let evt = this._events[t] // Remove specific key.
-  if (!evt) return this
+  let l = this._events[t] // Remove specific key.
+  if (!l) return this
 
   if (t !== 'removeListener') // Notify.
-    for (let i = 0; i < evt.length; i++)
-      this.emit('removeListener', t, evt[i])
+    for (let i = 0; i < l.length; i++)
+      this.emit('removeListener', t, l[i])
 
   delete this._events[t]
   return this
@@ -159,12 +148,13 @@ EventEmitter.prototype.removeAllListeners = function(t)
 /* Return listener list for event `t`. */
 EventEmitter.prototype.listeners = function(t)
 {
-  return this._events[t] || [] // Maybe .slice() ?
+  this.init(t)
+  return this._events[t] // Maybe .slice() ?
 }
 
 /* Return number of listeners for event `t`. */
-EventEmitter.prototype.listenerCount = function(t)
+EventEmitter.prototype.listenerCount = function(self, t)
 {
-  return this.listeners().length
+  return self.listeners().length
 }
 

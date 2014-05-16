@@ -194,6 +194,14 @@ deep_equal = function(actual, expected)
   }
 }
 
+assert.present = function(v, name)
+{
+  if (is_null_or_undefined(v))
+    fail(v, "!is_null_or_undefined", name + " must not be null or undefined"
+        , "!is_null_or_undefined", assert.present)
+  return v
+}
+
 assert.deepEqual = function(actual, expected, message)
 {
   if (!deep_equal(actual, expected))
