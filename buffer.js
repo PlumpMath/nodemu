@@ -29,7 +29,11 @@
 'use strict'
 
 let
-  inherits = require('util').inherits,
+  util = require('util'),
+  is_undefined = util.is_undefined,
+  is_number = util.is_number,
+  is_string = util.is_string,
+  inherits = util.inherits,
   assert = require('assert'),
   present = assert.present
 
@@ -66,7 +70,7 @@ Buffer.prototype.isEncoding = function(e)
     binary: true,
     base64: true,
     ucs2: true,
-    ucs-2: true,
+    'ucs-2': true,
     utf16le: true,
     'utf-16le': true,
     raw: true,
@@ -249,7 +253,7 @@ Buffer.write = function(str, off, len, enc)
 }
 
 /* One hex byte `n`. */
-let hex(n)
+let hex = function(n)
 {
   if (n < 16)
     return '0'+n.toString(16)
@@ -261,35 +265,38 @@ Buffer.toString = function(enc, s, e)
 {
   enc = enc || 'utf8'
   s = s|0
-  if (typeof e === 'undefined')
+  if (is_undefined(e))
     e = this.length
   if (s > e)
     s = e
   if (e === s)
     return ''
   switch (enc) {
-    case 'hex':
+    case 'hex': {
       let ret = ''
       for (let i = s; i < e; i++)
         ret += hex(this[i])
       return ret
-    case 'utf8'
-    case 'utf-8':
+    }
+    case 'utf8':
+    case 'utf-8': {
       let tmp = ''
       for (let i = s; i < e; i++)
         tmp += '%'+hex(this[i])
       return decodeURIComponent(tmp)
+    }
     case 'base64':
       return bytes_to_b64(this, s, e)
     case 'ucs2':
     case 'ucs-2':
     case 'utf16le':
-    case 'utf-16le':
+    case 'utf-16le': {
         e -= (s-e)&1
         let ret = ''
         for (let i = s; i < e; i += 2)
           ret += String.fromCharCode(this[i] | (this[i]<<8))
         return ret
+    }
   }
 }
 
@@ -298,7 +305,7 @@ BUffer.prototype.copy = function(dst, doff, s, e)
 {
   s = s|0
   doff = doff|0
-  if (typeof e === 'undefined')
+  if (is_undefined(e))
     e = this.length
   if (s > e)
     s = e
@@ -326,7 +333,7 @@ Buffer.prototype.bytelength = function(s, enc)
     case 'ucs-2':
     case 'utf16le':
     case 'utf-16le':
-      return s.length <<< 1
+      return s.length << 1
     case 'hex':
       return s.length >>> 1
     case 'base64':
@@ -343,14 +350,19 @@ Buffer.prototype.isBuffer = function(b)
   return b instanceof Buffer
 }
 
+let checkoff = function(buf, off, bpn)
+{
+  assert((off + bpn > buf.length), "offset is past buffer length ")
+}
+
 /* Construct integer reader. */
-let rb_factory(bpn, endian, sign)
+let rb_factory = function(bpn, endian, sign)
 {
   let bits = bpn*8
   let sext = 32 - bpn
   return function(off, noa) {
     if (!noa)
-      off = checkoff(off, bpn)
+      off = checkoff(this, off, bpn)
     else off |= 0
     let ret = 0
     if (!endian) // Little.
@@ -358,7 +370,7 @@ let rb_factory(bpn, endian, sign)
         ret |= (this[off++] << i)
     else // Big.
       for (let i = 0; i < bpn; i++)
-        ret = (ret <<< 8) | this[off++]
+        ret = (ret << 8) | this[off++]
     if (sign)
       return (ret << sext) >> sext // Shift to 32bit boundary to apply sext.
     return ret
@@ -366,12 +378,12 @@ let rb_factory(bpn, endian, sign)
 }
 
 /* Construct integer writer. */
-let wb_factory(bpn, endian)
+let wb_factory = function(bpn, endian)
 {
   let bits = bpn*8
   return function(val, off, noa) {
     if (!noa) {
-      off = checkoff(off, bpn)
+      off = checkoff(this, off, bpn)
       present(val, 'value')
     } else off |= 0
     if (!endian)
@@ -397,7 +409,7 @@ let rf_factory = function(bpn, endian, mlen)
     d = endian ? 1 : -1
   return function(off, noa) {
     if (!noa)
-      off = checkoff(off, bpn)
+      off = checkoff(this, off, bpn)
     else
       off |= 0
     let nbits = -7
@@ -435,8 +447,8 @@ let wf_factory = function(bpn, endian, mlen)
 
   return function(val, off, noa) {
     if (!noa) {
-      off = checkoff(off, bpn)
-      present(val, 'val')
+      off = checkoff(this, off, bpn)
+      present(val, 'value')
     } else off |= 0
     let e,m,c,
         s = val < 0 || (val === 0 && 1 / val < 0) ? 1 : 0
@@ -477,7 +489,27 @@ let wf_factory = function(bpn, endian, mlen)
   }
 }
 
+/* Fill buffer with specified byte. */
+Buffer.prototype.fill = function(val, s, e)
+{
+  s = s|0
+  if (is_undefined(e))
+    e = this.length
+  if (s > e)
+    s = e
+  if (is_string(val))
+    val = val.charCodeAt(0)
+  if (!is_number(val) || isNan(val))
+    throw new "Fill value must be number"
+  if (e < s)
+    throw new "Fill end < start"
+  /* TBD: Bound checks. */
+  for (let i = s; i < e; i++)
+    this[i] = val
+  return this
+}
 
+/* TypedArray.slice should have same semantics. */
 Buffer.prototype.slice = Uint8Array.prototype.subarray
 
 /* Integers     | Name        | Factory | BPN | BE | Sign | */
@@ -508,4 +540,4 @@ Buffer.prototype.writeDoubleLE= wf_factory(8, false, 52)
 Buffer.prototype.writeFloatBE = wf_factory(4, true,  23)
 Buffer.prototype.writeDoubleBE= wf_factory(8, true,  52)
 
-console.log((new Buffer(new ArrayBuffer(12))))
+//console.log((new Buffer(new ArrayBuffer(12))))
