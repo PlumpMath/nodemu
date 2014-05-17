@@ -56,9 +56,4 @@ let protect2 = function(f) {
   }
 }
 
-/* Rename file. */
-exports.renameSync = protect2(function(o, n) {
-  return FS.rename(o, n)
-})
-
 

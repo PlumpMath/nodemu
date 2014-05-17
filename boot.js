@@ -278,6 +278,6 @@ setglobal('process', {
 
 /* Instantiate common global vars. */
 setglobal('require', Module.prototype.require.bind(Module.prototype))
-setglobal('console', global.require('console'))
+//setglobal('console', global.require('console'))
 
 

@@ -33,7 +33,7 @@ let util = require('util'),
     is_undefined = util.is_undefined,
     is_number = util.is_number,
     is_string = util.is_string,
-    is_reg_exp = util.is_reg_exp
+    is_reg_exp = util.is_reg_exp,
     is_null_or_undefined = util.is_null_or_undefined,
     is_date = util.is_date,
     is_object = util.is_object,
@@ -42,10 +42,11 @@ let util = require('util'),
 
 /* Forward decls. */
 let assert, get_message, fail, deep_equal
-let ok = assert = assert.ok = exports = function(value, message)
+assert = exports = function(value, message)
 {
   if (!value) fail(value, true, message, '==', assert.ok)
 }
+assert.ok = assert
 
 assert.AssertionError = function AssertionError(options)
 {
@@ -119,7 +120,7 @@ let is_arguments = function(object)
   return Object.prototype.toString.call(object) == '[object Arguments]'
 }
 
-let function obj_equiv(a, b)
+let obj_equiv = function(a, b)
 {
   if (is_null_or_undefined(a) || is_null_or_undefined(b))
     return false

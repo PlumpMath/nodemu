@@ -40,22 +40,23 @@ let
 let Buffer = exports.Buffer = exports.SlowBuffer = function(from, encoding)
 {
   if (!(this instanceof Buffer))
-    return new Buffer(v, encoding, offset)
+    return new Buffer(from, encoding)
+
+  let self
 
   if (is_number(from) || is_array(from)) // Easy cases.
-    return Uint8Array.call(this, from)
-  if (v instanceof ArrayBuffer)
-    return Uint8Array.call(this, v, offset)
-  if (v instanceof BufferView)
-    return Uint8Array.call(this, v.buffer, v.byteOffset + (encoding || 0))
-
+    self = new Uint8Array(from)
+  if (from instanceof ArrayBuffer)
+    self = new Uint8Array(from.offset)
+  if (from instanceof BufferView)
+    self = new Uint8Array(from.buffer, from.byteOffset + (encoding || 0))
 
   if (is_string(from)) { // Perform conversion from strings.
-    let self = Uint8Array.call(this,
-        Buffer.bytelength(from, encoding = encoding || 'utf8'))
+    self = new Uint8Array(Buffer.bytelength(from, encoding = encoding || 'utf8'))
     self.write(from, encoding)
-    return self
   }
+  self.__proto__ = Buffer.prototype
+  return self
 }
 inherits(Buffer, Uint8Array)
 
@@ -301,7 +302,7 @@ Buffer.toString = function(enc, s, e)
 }
 
 /* Buffer memcpy() */
-BUffer.prototype.copy = function(dst, doff, s, e)
+Buffer.prototype.copy = function(dst, doff, s, e)
 {
   s = s|0
   doff = doff|0
@@ -540,4 +541,4 @@ Buffer.prototype.writeDoubleLE= wf_factory(8, false, 52)
 Buffer.prototype.writeFloatBE = wf_factory(4, true,  23)
 Buffer.prototype.writeDoubleBE= wf_factory(8, true,  52)
 
-//console.log((new Buffer(new ArrayBuffer(12))))
+console.log((new Buffer(new ArrayBuffer(12))))
